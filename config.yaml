@@ -1,0 +1,11 @@
+personas:
+  agent_a_name: "Scientist"
+  agent_b_name: "Philosopher"
+  agent_a_prompt_path: "persona_templates/agent_a.txt"
+  agent_b_prompt_path: "persona_templates/agent_b.txt"
+
+logging:
+  default_log_dir: "examples"
+
+debate:
+  max_rounds: 8

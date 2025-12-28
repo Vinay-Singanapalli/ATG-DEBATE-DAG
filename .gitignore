@@ -1,0 +1,14 @@
+# Python / venv
+.venv/
+__pycache__/
+*.pyc
+
+# Logs / outputs
+examples/*.jsonl
+*.log
+dag.png
+
+# OS / editor
+.vscode/
+.DS_Store
+Thumbs.db

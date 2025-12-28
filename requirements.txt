@@ -1,0 +1,10 @@
+langgraph
+langchain-core
+pyyaml
+python-dotenv
+graphviz
+pytest
+langchain
+langchain-openai
+openai
+langchain-ollama
