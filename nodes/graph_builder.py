@@ -34,9 +34,7 @@ def build_graph():
     g.add_edge("MemoryNode", "LoggerNode")
     g.add_edge("JudgeNode", "LoggerNode")
 
-    def route_from_logger(
-        state: DebateState,
-    ) -> Literal["Coordinator", "AgentA", "AgentB", "MemoryNode", "JudgeNode", "end"]:
+    def route_from_logger(state: DebateState) -> Literal["Coordinator", "AgentA", "AgentB", "MemoryNode", "JudgeNode", "end"]:
         if state.get("status") == "ERROR":
             return "end"
 
@@ -46,7 +44,6 @@ def build_graph():
             return "Coordinator"
 
         if lastnode == "COORDINATOR":
-            # Route from nextspeaker (source of truth). Coordinator sets pendingspeaker too.
             ns = state.get("nextspeaker", "A")
             return "AgentA" if ns == "A" else "AgentB"
 
@@ -54,7 +51,8 @@ def build_graph():
             return "MemoryNode"
 
         if lastnode == "MEMORY":
-            if int(state.get("roundidx", 0)) >= 8:
+            max_rounds = int(state.get("maxrounds", 8))
+            if int(state.get("roundidx", 0)) >= max_rounds:
                 return "JudgeNode" if state.get("gotojudge", True) else "end"
             return "Coordinator"
 
@@ -80,6 +78,3 @@ def build_graph():
     )
 
     return g.compile()
-
-
-

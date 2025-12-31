@@ -19,13 +19,7 @@ def validate_topic(topic: str) -> None:
 
 
 def user_input_node(state: DebateState) -> DebateState:
-    """
-    Must preserve runtime/config keys already in state, especially:
-    - logpath
-    - seed
-    - maxrounds/maxretries
-    """
-    out: Dict[str, Any] = dict(state)  # <-- preserve everything
+    out: Dict[str, Any] = dict(state)
 
     raw = (out.get("rawtopic") or out.get("topic") or "").strip()
     topic = sanitize_topic(raw)
@@ -34,11 +28,12 @@ def user_input_node(state: DebateState) -> DebateState:
     out["rawtopic"] = raw
     out["topic"] = topic
 
-    # Hard requirement
+    # assignment requirement
     out["maxrounds"] = 8
     out.setdefault("maxretries", 2)
+    out.setdefault("gotojudge", True)
 
-    # Reset debate fields only (do NOT wipe config keys)
+    # reset debate fields
     out["status"] = "OK"
     out["error"] = ""
     out["verdict"] = None
@@ -60,27 +55,18 @@ def user_input_node(state: DebateState) -> DebateState:
 
     out["formatviolations"] = []
     out["coherenceflags"] = []
-
     out["usedquotes"] = []
 
-    # Agent memory slices (no full-state broadcast)
-    out["memoryfora"] = {
-        "summary": "",
-        "recentturns": [],
-        "lastownturn": None,
-        "lastopponentturn": None,
-        "youare": "AgentA",
-    }
-    out["memoryforb"] = {
-        "summary": "",
-        "recentturns": [],
-        "lastownturn": None,
-        "lastopponentturn": None,
-        "youare": "AgentB",
-    }
+    out["memoryfora"] = {"summary": "", "recentturns": [], "lastownturn": None, "lastopponentturn": None, "youare": "AgentA"}
+    out["memoryforb"] = {"summary": "", "recentturns": [], "lastownturn": None, "lastopponentturn": None, "youare": "AgentB"}
+
+    # logging helpers
+    out["last_node_io"] = {"node": "USER_INPUT", "input": {"rawtopic": raw}, "output": {"topic": topic}}
+    out["last_node_name"] = "UserInputNode"
 
     out["lastnode"] = "USER_INPUT"
     return out
+
 
 
 

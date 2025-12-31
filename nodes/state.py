@@ -11,14 +11,14 @@ class Turn(TypedDict, total=False):
     round: int
     agent: str
     speaker: Speaker
-    text: str
-    meta: Dict[str, Any]
+    text: str                 # CLEAN paragraph shown in CLI
+    meta: Dict[str, Any]       # internal structured fields + diagnostics
 
 
 class Verdict(TypedDict, total=False):
     summary: str
-    winner: Literal["AgentA", "AgentB"]
-    justification: str
+    winner: Literal["Scientist", "Philosopher"]
+    reason: str
     coherenceflags: List[Dict[str, Any]]
 
 
@@ -52,7 +52,11 @@ class DebateState(TypedDict, total=False):
 
     lastnode: str
 
-    # ---- pending handoff (CRITICAL: must exist in schema) ----
+    # ---- logging helpers (captured by LoggerNode) ----
+    last_node_io: Dict[str, Any]
+    last_node_name: str
+
+    # ---- pending handoff ----
     pendingspeaker: Speaker
     pendingagentname: str
     pendingtext: str
@@ -75,5 +79,4 @@ class DebateState(TypedDict, total=False):
 
     usedquotes: List[str]
 
-    # judge output
     verdict: Optional[Verdict]
