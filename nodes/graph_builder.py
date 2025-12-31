@@ -7,66 +7,79 @@ from langgraph.graph import END, StateGraph
 from nodes.state import DebateState
 from nodes.user_input_node import user_input_node
 from nodes.coordinator_node import coordinator_node
-from nodes.agent_node import agent_node
+from nodes.agent_node import agent_a_node, agent_b_node
 from nodes.memory_node import memory_node
 from nodes.judge_node import judge_node
 from nodes.logger_node import logger_node
 
 
 def build_graph():
-    g = StateGraph(DebateState)
+    g: StateGraph = StateGraph(DebateState)
 
     g.add_node("UserInputNode", user_input_node)
     g.add_node("Coordinator", coordinator_node)
-    g.add_node("Agent", agent_node)
+    g.add_node("AgentA", agent_a_node)
+    g.add_node("AgentB", agent_b_node)
     g.add_node("MemoryNode", memory_node)
     g.add_node("JudgeNode", judge_node)
     g.add_node("LoggerNode", logger_node)
 
     g.set_entry_point("UserInputNode")
 
-    # Always log after each main node.
+    # Always log after each node
     g.add_edge("UserInputNode", "LoggerNode")
     g.add_edge("Coordinator", "LoggerNode")
-    g.add_edge("Agent", "LoggerNode")
+    g.add_edge("AgentA", "LoggerNode")
+    g.add_edge("AgentB", "LoggerNode")
     g.add_edge("MemoryNode", "LoggerNode")
     g.add_edge("JudgeNode", "LoggerNode")
 
-    # Logger routes based on what just happened (stored in last_node).
-    def route_from_logger(state: DebateState) -> Literal["Coordinator", "Agent", "MemoryNode", "JudgeNode", "__end__"]:
+    def route_from_logger(
+        state: DebateState,
+    ) -> Literal["Coordinator", "AgentA", "AgentB", "MemoryNode", "JudgeNode", "end"]:
         if state.get("status") == "ERROR":
-            return "__end__"
+            return "end"
 
-        last = state.get("last_node", "")
+        lastnode = (state.get("lastnode") or "").strip().upper()
 
-        if last == "UserInputNode":
+        if lastnode == "USER_INPUT":
             return "Coordinator"
 
-        if last.startswith("Coordinator"):
-            # Coordinator decided whether to go to Agent or Judge
-            if last == "Coordinator->Judge":
-                return "JudgeNode"
-            return "Agent"
+        if lastnode == "COORDINATOR":
+            # Route from nextspeaker (source of truth). Coordinator sets pendingspeaker too.
+            ns = state.get("nextspeaker", "A")
+            return "AgentA" if ns == "A" else "AgentB"
 
-        if last.startswith("Agent"):
+        if lastnode in ("AGENT_A", "AGENT_B"):
             return "MemoryNode"
 
-        if last == "MemoryNode":
+        if lastnode == "MEMORY":
+            if int(state.get("roundidx", 0)) >= 8:
+                return "JudgeNode" if state.get("gotojudge", True) else "end"
             return "Coordinator"
 
-        if last == "JudgeNode":
-            return "__end__"
+        if lastnode == "COORDINATOR_TO_JUDGE":
+            return "JudgeNode" if state.get("gotojudge", True) else "end"
 
-        # Safe fallback
-        return "__end__"
+        if lastnode == "JUDGE":
+            return "end"
 
-    g.add_conditional_edges("LoggerNode", route_from_logger, {
-        "Coordinator": "Coordinator",
-        "Agent": "Agent",
-        "MemoryNode": "MemoryNode",
-        "JudgeNode": "JudgeNode",
-        "__end__": END,
-    })
+        return "end"
 
-    return g
+    g.add_conditional_edges(
+        "LoggerNode",
+        route_from_logger,
+        {
+            "Coordinator": "Coordinator",
+            "AgentA": "AgentA",
+            "AgentB": "AgentB",
+            "MemoryNode": "MemoryNode",
+            "JudgeNode": "JudgeNode",
+            "end": END,
+        },
+    )
+
+    return g.compile()
+
+
 

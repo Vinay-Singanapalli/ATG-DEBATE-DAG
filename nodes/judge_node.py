@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import json
-
 from langchain_ollama import ChatOllama
 from nodes.state import DebateState
 
 
 def judge_node(state: DebateState) -> DebateState:
-    turns = state.get("turns", [])
-    topic = state.get("topic", "")
+    out = dict(state)  # IMPORTANT: preserve whole state (turns, embeddings, etc.)
 
-    transcript = "\n".join([f"R{t['round']} {t['agent']}: {t['text']}" for t in turns])
+    turns = out.get("turns", [])
+    topic = out.get("topic", "")
 
-    # Force JSON output mode (Ollama supports format="json"). [web:269]
+    transcript = "\n".join([f"R{t.get('round')} {t.get('agent')}: {t.get('text')}" for t in turns])
+
     llm = ChatOllama(
-        model=state.get("judge_model", "llama3.2:1b"),
+        model=out.get("judge_model", "llama3.2:1b"),
         temperature=0.0,
         format="json",
         num_predict=420,
@@ -31,24 +31,35 @@ def judge_node(state: DebateState) -> DebateState:
     msg = llm.invoke([{"role": "system", "content": system}, {"role": "user", "content": user}])
     raw = getattr(msg, "content", str(msg)).strip()
 
-    # Parse JSON; if model fails, wrap raw as strings
+    coherence_flags = out.get("coherence_flags", out.get("coherenceflags", []))
+
     try:
         parsed = json.loads(raw)
+        winner = str(parsed.get("winner", "")).strip()
+        if winner not in ("AgentA", "AgentB"):
+            winner = "AgentA"
+
         verdict = {
-            "summary": str(parsed.get("summary", "")),
-            "winner": str(parsed.get("winner", "")),
-            "justification": str(parsed.get("justification", "")),
-            "coherence_flags": state.get("coherence_flags", []),
+            "summary": str(parsed.get("summary", "")).strip(),
+            "winner": winner,
+            "justification": str(parsed.get("justification", "")).strip(),
+            "coherence_flags": coherence_flags,
         }
     except Exception:
         verdict = {
             "summary": str(raw[:2000]),
             "winner": "AgentA",
             "justification": "Judge returned invalid JSON; raw output stored in summary.",
-            "coherence_flags": state.get("coherence_flags", []),
+            "coherence_flags": coherence_flags,
         }
 
-    return {"last_node": "JudgeNode", "verdict": verdict}
+    out["verdict"] = verdict
+    out["status"] = "OK"
+    out["error"] = ""
+    out["last_node"] = "JudgeNode"
+    out["lastnode"] = "JudgeNode"
+    return out
+
 
 
 

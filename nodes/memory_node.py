@@ -1,69 +1,93 @@
 from __future__ import annotations
 
-from nodes.state import DebateState, Turn
+from typing import Any, Dict, List
+
+from nodes.state import DebateState
 
 
 def memory_node(state: DebateState) -> DebateState:
-    if state.get("status") == "ERROR":
-        return {"last_node": "MemoryNode(ERROR-PASS)"}
+    """
+    Updates:
+    - turns[] transcript
+    - roundidx
+    - nextspeaker (flip A<->B)
+    - memoryfora/memoryforb slices (no full broadcast)
+    """
+    out: Dict[str, Any] = dict(state)
 
-    speaker = state["pending_speaker"]
-    agent_name = state["pending_agent_name"]
-    text = state["pending_text"]
+    if out.get("status") == "ERROR":
+        out["lastnode"] = "MEMORY"
+        return out
 
-    turns = list(state.get("turns", []))
+    topic = out.get("topic", "")
+    turns: List[Dict[str, Any]] = list(out.get("turns", []))
+
+    speaker = out.get("pendingspeaker")
+    agent_name = out.get("pendingagentname")
+    text = out.get("pendingtext") or ""
+
+    if speaker not in ("A", "B") or not agent_name or not text.strip():
+        out["status"] = "ERROR"
+        out["error"] = "MemoryNode missing pending speaker/agent/text."
+        out["lastnode"] = "MEMORY"
+        return out
+
     round_no = len(turns) + 1
-
-    turn: Turn = {
-        "round": round_no,
-        "agent": agent_name,
-        "speaker": speaker,
-        "text": text,
-        "meta": {},
-    }
-    turns.append(turn)
-
-    # Rolling summary: keep it short and structured
-    last_two = turns[-2:]
-    summary = state.get("summary", "")
-    new_summary = summary
-    if not new_summary:
-        new_summary = f"Topic: {state['topic']}. "
-    new_summary = (new_summary + f"[R{round_no}:{agent_name}] {text[:120]}... ").strip()
-
-    # Update repetition index
-    argument_norms = list(state.get("argument_norms", []))
-    argument_norms.append(text)
-
-    # Compute next speaker and memory slices (no full-state broadcast)
-    next_speaker = "B" if speaker == "A" else "A"
-
-    def slice_for(s: str):
-        own = None
-        opp = None
-        for t in reversed(turns):
-            if t["speaker"] == s and own is None:
-                own = t
-            if t["speaker"] != s and opp is None:
-                opp = t
-            if own and opp:
-                break
-        return {
-        "summary": new_summary[-700:],
-        "recent_turns": [{"round": t["round"], "agent": t["agent"], "text": t["text"]} for t in turns[-3:]],
-        "last_own_turn": {"round": own["round"], "text": own["text"]} if own else None,
-        "last_opponent_turn": {"round": opp["round"], "text": opp["text"]} if opp else None,
-        "you_are": "AgentA" if s == "A" else "AgentB",
+    turns.append(
+        {
+            "round": round_no,
+            "agent": agent_name,
+            "speaker": speaker,
+            "text": text,
+            "meta": {},
         }
+    )
 
+    out["turns"] = turns
+    out["roundidx"] = len(turns)
 
-    return {
-        "turns": turns,
-        "round_idx": len(turns),
-        "summary": new_summary,
-        "argument_norms": argument_norms,
-        "next_speaker": next_speaker,
-        "memory_for_a": slice_for("A"),
-        "memory_for_b": slice_for("B"),
-        "last_node": "MemoryNode",
+    # Very small running summary (kept short)
+    prev_summary = (out.get("summary") or "").strip()
+    snippet = text.replace("\n", " ")[:160].strip()
+    if not prev_summary:
+        out["summary"] = f"Topic: {topic}. R{round_no} {agent_name}: {snippet}"
+    else:
+        out["summary"] = (prev_summary + f" | R{round_no} {agent_name}: {snippet}")[-900:]
+
+    # Flip next speaker
+    out["nextspeaker"] = "B" if speaker == "A" else "A"
+
+    # Build per-agent memory slices (summary + last 3 turns + last own/opp)
+    def last_turn_for(s: str) -> Dict[str, Any] | None:
+        for t in reversed(turns):
+            if t.get("speaker") == s:
+                return t
+        return None
+
+    a_last = last_turn_for("A")
+    b_last = last_turn_for("B")
+
+    recent = [{"round": t["round"], "agent": t["agent"], "text": t["text"]} for t in turns[-3:]]
+
+    out["memoryfora"] = {
+        "summary": out["summary"][-700:],
+        "recentturns": recent,
+        "lastownturn": {"round": a_last["round"], "text": a_last["text"]} if a_last else None,
+        "lastopponentturn": {"round": b_last["round"], "text": b_last["text"]} if b_last else None,
+        "youare": "AgentA",
     }
+    out["memoryforb"] = {
+        "summary": out["summary"][-700:],
+        "recentturns": recent,
+        "lastownturn": {"round": b_last["round"], "text": b_last["text"]} if b_last else None,
+        "lastopponentturn": {"round": a_last["round"], "text": a_last["text"]} if a_last else None,
+        "youare": "AgentB",
+    }
+
+    # Clear pending fields
+    out["pendingspeaker"] = out["nextspeaker"]
+    out["pendingagentname"] = ""
+    out["pendingtext"] = ""
+
+    out["lastnode"] = "MEMORY"
+    return out

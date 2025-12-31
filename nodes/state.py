@@ -14,60 +14,66 @@ class Turn(TypedDict, total=False):
     text: str
     meta: Dict[str, Any]
 
+
 class Verdict(TypedDict, total=False):
     summary: str
-    winner: str
+    winner: Literal["AgentA", "AgentB"]
     justification: str
-    coherence_flags: List[Dict[str, Any]]
-
+    coherenceflags: List[Dict[str, Any]]
 
 
 class DebateState(TypedDict, total=False):
-    # User input
-    raw_topic: str
+    # ---- runtime / config ----
+    logpath: str
+    seed: Optional[int]
+
+    maxrounds: int
+    maxretries: int
+    gotojudge: bool
+
+    agentaname: str
+    agentbname: str
+
+    llmmodel: str
+    llmtemperature: float
+    llmmaxtokens: int
+    judgemodel: str
+
+    # ---- user input ----
+    rawtopic: str
     topic: str
 
-    verdict: Verdict
+    # ---- controller ----
+    roundidx: int
+    nextspeaker: Speaker
 
-    argument_embeddings: List[List[float]]
-    topic_embedding: List[float]
-    repetition_max_cosine: float
-    topic_min_cosine: float
-    format_violations: List[Dict[str, Any]]
-
-    # LLM / embeddings runtime config (must be in schema or it may be filtered)
-    llm_model: str
-    judge_model: str
-    embed_model: str
-    llm_temperature: float
-    llm_max_tokens: int
-
-
-    # Control
-    max_rounds: int
-    round_idx: int  # number of ACCEPTED turns already in memory (0..max_rounds)
-    next_speaker: Speaker
     status: Status
     error: str
 
-    # Debate memory (structured)
+    lastnode: str
+
+    # ---- pending handoff (CRITICAL: must exist in schema) ----
+    pendingspeaker: Speaker
+    pendingagentname: str
+    pendingtext: str
+
+    # ---- debate memory ----
     turns: List[Turn]
     summary: str
 
-    # Memory slices (each agent only gets its own slice)
-    memory_for_a: Dict[str, Any]
-    memory_for_b: Dict[str, Any]
+    memoryfora: Dict[str, Any]
+    memoryforb: Dict[str, Any]
 
-    # Validation indexes
-    argument_norms: List[str]          # normalized strings for repetition checks
-    coherence_flags: List[Dict[str, Any]]
+    # ---- validation / checks ----
+    coherenceflags: List[Dict[str, Any]]
+    formatviolations: List[Dict[str, Any]]
 
-    # Execution config
-    seed: Optional[int]
-    log_path: str
+    retrycount: int
+    retryreason: str
+    lastrejectedtext: str
+    rejectionhistory: List[Dict[str, Any]]
 
-    # Pipeline handoff fields
-    pending_speaker: Speaker
-    pending_agent_name: str
-    pending_text: str
-    last_node: str
+    usedquotes: List[str]
+
+    # judge output
+    verdict: Optional[Verdict]

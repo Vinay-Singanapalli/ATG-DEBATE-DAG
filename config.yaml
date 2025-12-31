@@ -9,3 +9,11 @@ logging:
 
 debate:
   max_rounds: 8
+
+max_retries: 2
+
+validation:
+  use_embeddings: false
+  jaccard_threshold: 0.82
+  semantic_threshold: 0.90
+  topic_min_cosine: 0.35

@@ -8,3 +8,5 @@ langchain
 langchain-openai
 openai
 langchain-ollama
+numpy>=1.24
+scikit-learn>=1.3
